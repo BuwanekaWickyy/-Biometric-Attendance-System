@@ -24,38 +24,29 @@
 #include "time.h"
 #include <vector>
 
-// --- Wi-Fi Credentials (IMPORTANT: CHANGE THESE) ---
 const char* ssid = "YOUR_WIFI_SSID";
 const char* password = "YOUR_WIFI_PASSWORD";
 
-// --- Time Configuration for New Zealand ---
 const char* ntpServer = "pool.ntp.org";
-// NZST is GMT+12. NZDT is GMT+13.
 const long gmtOffset_sec = 12 * 3600; // GMT+12 = 43200
 const int daylightOffset_sec = 1 * 3600;  // Additional 1 hour for NZDT = 3600
 
-// --- Hardware & Server Setup ---
 HardwareSerial fingerSerial(2);
 Adafruit_Fingerprint finger = Adafruit_Fingerprint(&fingerSerial);
 WebServer server(80); // Web server runs on port 80
 
-// --- Data Structure for Attendance Records ---
 struct AttendanceRecord {
   String userID;
   String timestamp;
 };
 
-// A dynamic list to store attendance records in memory
 std::vector<AttendanceRecord> attendanceLog;
 
-
-// --- Main Setup Function ---
 void setup() {
   Serial.begin(115200);
   while (!Serial);
   delay(100);
 
-  // --- 1. Connect to Wi-Fi ---
   Serial.print("Connecting to ");
   Serial.println(ssid);
   WiFi.begin(ssid, password);
@@ -67,21 +58,18 @@ void setup() {
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
 
-  // --- 2. Initialize Time from NTP Server ---
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
   Serial.println("Time configured via NTP for New Zealand.");
 
-  // --- 3. Initialize Fingerprint Sensor ---
   finger.begin(57600);
   if (finger.verifyPassword()) {
     Serial.println("Found fingerprint sensor!");
   } else {
     Serial.println("Did not find fingerprint sensor :(");
-    while (1) { delay(1); } // Halt
+    while (1) { delay(1); } 
   }
   
-  // --- 4. Setup Web Server Routes ---
-  server.on("/", handleRoot); // When root URL is requested, call handleRoot()
+  server.on("/", handleRoot); 
   server.begin();
   Serial.println("HTTP server started.");
   Serial.print("Open http://");
@@ -91,17 +79,13 @@ void setup() {
   printMenu();
 }
 
-// --- Main Loop ---
 void loop() {
-  server.handleClient(); // Listen for incoming web requests
+  server.handleClient(); 
   
-  // You can also add a non-blocking check for a finger
-  // to mark attendance without needing serial input.
   if (getFingerprintID() != -1) {
     takeAttendance();
   }
   
-  // Check for serial commands for enrolling/deleting
   if (Serial.available() > 0) {
     char command = Serial.read();
     switch (command) {
@@ -123,7 +107,6 @@ void loop() {
 }
 
 
-// --- Web Server Handler ---
 void handleRoot() {
   String html = "<!DOCTYPE html><html><head><title>Attendance Log</title>";
   html += "<style>body{font-family: Arial, sans-serif; margin: 20px;} h1{color: #333;} table{width: 60%; border-collapse: collapse; margin-top: 20px;} th, td{padding: 10px; text-align: left; border: 1px solid #ddd;} th{background-color: #f2f2f2;}</style>";
@@ -132,7 +115,6 @@ void handleRoot() {
   html += "<h1>Biometric Attendance Log</h1>";
   html += "<table><thead><tr><th>User ID</th><th>Timestamp</th></tr></thead><tbody>";
   
-  // Loop through all records and add them to the table
   for (const auto& record : attendanceLog) {
     html += "<tr><td>" + record.userID + "</td><td>" + record.timestamp + "</td></tr>";
   }
@@ -143,7 +125,6 @@ void handleRoot() {
 }
 
 
-// --- Time Helper Function ---
 String getCurrentTime() {
   struct tm timeinfo;
   if(!getLocalTime(&timeinfo)){
@@ -154,7 +135,6 @@ String getCurrentTime() {
   return String(timeString);
 }
 
-// --- Menu Helper ---
 void printMenu() {
   Serial.println("\n--- MENU ---");
   Serial.println("Place finger on sensor to mark attendance automatically.");
@@ -165,10 +145,8 @@ void printMenu() {
 }
 
 
-// --- Core Attendance & Enrollment Functions ---
-
 void takeAttendance() {
-  int fingerID = getFingerprintID_blocking(); // Wait for a finger
+  int fingerID = getFingerprintID_blocking(); 
   
   if (fingerID != -1) {
     Serial.print("Attendance Marked! Welcome User #");
@@ -185,8 +163,6 @@ void takeAttendance() {
   printMenu();
 }
 
-// This function scans for a finger and returns the matched ID.
-// It is non-blocking, meaning it returns -1 immediately if no finger is found.
 int getFingerprintID() {
   uint8_t p = finger.getImage();
   if (p != FINGERPRINT_OK) return -1;
@@ -200,7 +176,6 @@ int getFingerprintID() {
   return finger.fingerID;
 }
 
-// This function is for interactive use and will wait until a finger is found.
 int getFingerprintID_blocking() {
   Serial.println("Please place your finger");
   uint8_t p = -1;
@@ -217,7 +192,6 @@ int getFingerprintID_blocking() {
   return finger.fingerID;
 }
 
-// Function to enroll a new fingerprint with a two-stage process
 void enrollFingerprint() {
   Serial.println("Ready to enroll a new finger!");
   Serial.println("Please enter the ID # (1-127) to save this finger as...");
@@ -234,7 +208,6 @@ void enrollFingerprint() {
   Serial.print("Enrolling ID #");
   Serial.println(id);
 
-  // --- First Scan ---
   Serial.println("Place your finger on the sensor...");
   int p = -1;
   while (p != FINGERPRINT_OK) {
@@ -250,7 +223,6 @@ void enrollFingerprint() {
     p = finger.getImage();
   }
 
-  // --- Second Scan ---
   Serial.println("Place the same finger again...");
   p = -1;
   while (p != FINGERPRINT_OK) {
@@ -259,7 +231,6 @@ void enrollFingerprint() {
   p = finger.image2Tz(2);
   if (p != FINGERPRINT_OK) { Serial.println("Image conversion failed"); return; }
 
-  // --- Create and Store Model ---
   Serial.println("Creating model...");
   p = finger.createModel();
   if (p == FINGERPRINT_OK) {
@@ -279,7 +250,6 @@ void enrollFingerprint() {
   printMenu();
 }
 
-// Function to delete a fingerprint from the sensor's memory
 void deleteFingerprint() {
   Serial.println("Please enter the ID # (1-127) you want to delete:");
   uint8_t id = 0;
